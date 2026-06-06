@@ -26,9 +26,8 @@ services:
                 provider: "openai"
                 name: "llama-3.3-70b-versatile"
                 options:
-                  # Groq's OpenAI-compatible base. If upstream calls 404, change this
-                  # to the full path: https://api.groq.com/openai/v1/chat/completions
-                  upstream_url: "https://api.groq.com/openai/v1"
+                  # Full Groq chat-completions endpoint (ai-proxy uses this verbatim).
+                  upstream_url: "https://api.groq.com/openai/v1/chat/completions"
               auth:
                 header_name: "Authorization"
                 header_value: "Bearer {vault://env/groq-api-key}"
