@@ -2,16 +2,17 @@
   "name": "kong-ai-gateway",
   "image": "mcr.microsoft.com/devcontainers/base:ubuntu",
   "features": {
-    "ghcr.io/devcontainers/features/docker-in-docker:2": {}
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {},
+    "ghcr.io/devcontainers/features/github-cli:1": {}
   },
   "forwardPorts": [8000, 8001, 5001, 5002],
   "portsAttributes": {
-    "8000": { "label": "Kong AI Gateway (proxy)" },
-    "8001": { "label": "Kong Admin API" },
-    "5001": { "label": "Presidio Anonymizer" },
-    "5002": { "label": "Presidio Analyzer" }
+    "8000": { "label": "Kong AI Gateway (proxy)", "visibility": "public", "onAutoForward": "silent" },
+    "8001": { "label": "Kong Admin API",          "visibility": "public", "onAutoForward": "silent" },
+    "5001": { "label": "Presidio Anonymizer",     "visibility": "public", "onAutoForward": "silent" },
+    "5002": { "label": "Presidio Analyzer",       "visibility": "public", "onAutoForward": "silent" }
   },
-  "postStartCommand": "docker compose up -d && (sleep 10; bash make-ports-public.sh || true)",
+  "postStartCommand": "docker compose up -d",
   "remoteEnv": {
     "GROQ_API_KEY": "${localEnv:GROQ_API_KEY}"
   }
