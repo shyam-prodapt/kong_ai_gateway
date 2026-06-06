@@ -1,0 +1,16 @@
+{
+  "name": "kong-ai-gateway",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu",
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {}
+  },
+  "forwardPorts": [8000, 8001],
+  "portsAttributes": {
+    "8000": { "label": "Kong AI Gateway (proxy)" },
+    "8001": { "label": "Kong Admin API" }
+  },
+  "postStartCommand": "docker compose up -d",
+  "remoteEnv": {
+    "GROQ_API_KEY": "${localEnv:GROQ_API_KEY}"
+  }
+}
