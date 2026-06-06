@@ -1,6 +1,6 @@
 services:
   kong:
-    image: kong:3.10
+    image: kong:3.9
     container_name: kong-ai-gateway
     restart: unless-stopped
     environment:

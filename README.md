@@ -63,7 +63,7 @@ only connectivity errors fall back to the direct provider.
 | File | Purpose |
 |------|---------|
 | `kong/kong.yml` | DB-less declarative config (ai-proxy + ai-prompt-guard) |
-| `docker-compose.yml` | Runs Kong 3.10 DB-less, ports 8000 (proxy) / 8001 (admin) |
+| `docker-compose.yml` | Runs Kong 3.9 (OSS) DB-less, ports 8000 (proxy) / 8001 (admin) |
 | `.devcontainer/devcontainer.json` | Codespaces dev container (Docker-in-Docker, port forward) |
 
 ## Tuning
