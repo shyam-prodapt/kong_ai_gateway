@@ -54,6 +54,21 @@ curl -s -o /dev/null -w '%{http_code}\n' -X POST "$KONG_URL/v1/chat/completions"
 (`KONG_URL` = the public Codespaces URL from step 5, e.g.
 `https://<codespace-name>-8000.app.github.dev`.)
 
+## Port visibility (resets on restart)
+
+GitHub Codespaces does **not** persist public port visibility across restarts (a new
+token is issued each session) — there is no `devcontainer.json` setting for it. So
+after a restart, make all ports public in one command instead of clicking each:
+
+```bash
+bash make-ports-public.sh   # sets 8000/8001/5001/5002 public via gh CLI
+```
+
+The dev container also tries this automatically on start (best-effort). If it can't
+(token scope/timing), run the script manually once the services are up, or set the
+ports in the **Ports** panel. Tip: raise your **default idle timeout** (github.com →
+Settings → Codespaces) so the codespace stops less often.
+
 ## PII detection (Presidio)
 
 Two extra services run alongside Kong: `presidio-analyzer` (port **5002**, `/analyze`)

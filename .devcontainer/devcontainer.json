@@ -11,7 +11,7 @@
     "5001": { "label": "Presidio Anonymizer" },
     "5002": { "label": "Presidio Analyzer" }
   },
-  "postStartCommand": "docker compose up -d",
+  "postStartCommand": "docker compose up -d && (sleep 10; bash make-ports-public.sh || true)",
   "remoteEnv": {
     "GROQ_API_KEY": "${localEnv:GROQ_API_KEY}"
   }
