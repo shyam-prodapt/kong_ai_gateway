@@ -1,20 +1,36 @@
 _format_version: "3.0"
 
 # DB-less declarative config for a self-hosted Kong AI Gateway.
-# - ai-proxy:        routes OpenAI-format chat requests to Groq (key injected by Kong)
-# - ai-prompt-guard: blocks prompt-injection inputs with PCRE deny patterns (HTTP 400)
 #
-# The Groq API key is read from the GROQ_API_KEY environment variable via Kong's
-# built-in env vault reference {vault://env/groq-api-key}. Never hard-code it here.
+# Routes:
+#   /v1    -> ai-proxy: OpenAI-format chat -> Groq (caller supplies the Bearer key)
+#   /guard -> guard-only probe: returns 200 if allowed, 400 if blocked (NO LLM call)
+#
+# ai-prompt-guard is attached at the SERVICE level, so it guards BOTH routes:
+#   - on /v1 it guards the real LLM prompt
+#   - on /guard it lets the app cheaply pre-check a query (request-termination
+#     returns 200 when the guard allows it; the guard returns 400 when it denies)
 
 services:
   - name: ai-llm
-    # Placeholder upstream; ai-proxy overrides the real upstream (Groq) below.
-    url: http://localhost:8000
+    url: http://localhost:8000   # placeholder; ai-proxy overrides the real upstream
+    plugins:
+      - name: ai-prompt-guard
+        config:
+          # Block injection / jailbreak phrasing on user messages. Normal grid
+          # queries don't match, so legitimate traffic flows through untouched.
+          deny_patterns:
+            - '(?i)ignore\s+(all|any|the|previous|prior|above)\s+(previous|prior|above|instructions|prompts?|context)'
+            - '(?i)disregard\s+(the\s+)?(above|previous|prior|system|earlier)'
+            - '(?i)forget\s+(all|everything|previous|your)'
+            - '(?i)\bsystem\s+prompt\b'
+            - '(?i)reveal\s+(your|the)\s+(system\s+prompt|instructions|prompt|rules)'
+            - '(?i)override\s+(your|the|all|any)\s+(instructions|rules|guard|safety)'
+            - '(?i)\bjailbreak\b'
+            - '(?i)\bdeveloper\s+mode\b'
+            - '(?i)\bdo\s+anything\s+now\b'
     routes:
       - name: ai-chat
-        # OpenAI SDK clients post to <base>/chat/completions, so a /v1 prefix route
-        # matches when the app sets base_url = https://<host>/v1
         paths:
           - /v1
         strip_path: false
@@ -22,27 +38,22 @@ services:
           - name: ai-proxy
             config:
               route_type: "llm/v1/chat"
-              # No `auth` block: the client's `Authorization: Bearer <groq-key>` header
-              # is forwarded to the upstream (Groq). Reliable and keeps the key out of
-              # gateway config / env vaults. The app holds the key in its own .env.
+              # No auth block: the client's Authorization: Bearer <groq-key> is
+              # forwarded to the upstream (Groq).
               model:
                 provider: "openai"
                 name: "llama-3.3-70b-versatile"
                 options:
-                  # Full Groq chat-completions endpoint (ai-proxy uses this verbatim).
                   upstream_url: "https://api.groq.com/openai/v1/chat/completions"
 
-          - name: ai-prompt-guard
+      - name: ai-guard
+        paths:
+          - /guard
+        strip_path: false
+        plugins:
+          # Runs only if ai-prompt-guard (higher priority) allowed the request.
+          - name: request-termination
             config:
-              # Block injection / jailbreak phrasing on user messages. Everything
-              # else passes, so normal grid queries flow through untouched.
-              deny_patterns:
-                - '(?i)ignore\s+(all|any|the|previous|prior|above)\s+(previous|prior|above|instructions|prompts?|context)'
-                - '(?i)disregard\s+(the\s+)?(above|previous|prior|system|earlier)'
-                - '(?i)forget\s+(all|everything|previous|your)'
-                - '(?i)\bsystem\s+prompt\b'
-                - '(?i)reveal\s+(your|the)\s+(system\s+prompt|instructions|prompt|rules)'
-                - '(?i)override\s+(your|the|all|any)\s+(instructions|rules|guard|safety)'
-                - '(?i)\bjailbreak\b'
-                - '(?i)\bdeveloper\s+mode\b'
-                - '(?i)\bdo\s+anything\s+now\b'
+              status_code: 200
+              content_type: "application/json"
+              body: '{"status":"allowed"}'
