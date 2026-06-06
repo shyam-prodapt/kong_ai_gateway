@@ -3,18 +3,20 @@
 A self-hosted, reusable [Kong AI Gateway](https://developer.konghq.com/ai-gateway/)
 that runs in GitHub Codespaces (or any Docker host). It provides:
 
-- **AI Proxy** — OpenAI-compatible endpoint that forwards chat requests to **Groq**.
-  The caller supplies the Groq key via the `Authorization: Bearer <key>` header, which
-  Kong forwards upstream (no key stored in gateway config).
-- **AI Prompt Guard** — blocks prompt-injection / jailbreak inputs with PCRE deny
-  patterns, returning **HTTP 400** before anything reaches the model.
+- **AI Proxy** (Kong) — OpenAI-compatible endpoint that forwards chat requests to
+  **Groq**. The caller supplies the Groq key via the `Authorization: Bearer <key>`
+  header, which Kong forwards upstream (no key stored in gateway config).
+- **AI Prompt Guard** (Kong) — blocks prompt-injection / jailbreak inputs with PCRE
+  deny patterns, returning **HTTP 400** before anything reaches the model. Exposed as
+  a cheap `/guard` probe route (no LLM call) for app-side pre-checks.
+- **PII detection + anonymization** (Microsoft Presidio) — ready-made analyzer +
+  anonymizer services. The app calls them to redact emails, phones, names, etc. from a
+  query before it reaches the LLM. (Kong's own AI PII Sanitizer plugin is Enterprise +
+  needs a gated container, so we run the same engine Kong's anonymizer is built on,
+  Presidio, directly.)
 
-Point any project's OpenAI client at this gateway's URL and you get injection
-guarding + centralized credentials for free.
-
-> Not included: **PII sanitization**. Kong's AI PII Sanitizer needs a gated private
-> container from Kong Support, so it isn't freely self-hostable here. Handle PII in
-> the application, or use a Kong Konnect managed gateway for it.
+Point any project's OpenAI client at this gateway and you get injection guarding,
+centralized credentials, and PII redaction for free.
 
 ---
 
@@ -52,6 +54,25 @@ curl -s -o /dev/null -w '%{http_code}\n' -X POST "$KONG_URL/v1/chat/completions"
 (`KONG_URL` = the public Codespaces URL from step 5, e.g.
 `https://<codespace-name>-8000.app.github.dev`.)
 
+## PII detection (Presidio)
+
+Two extra services run alongside Kong: `presidio-analyzer` (port **5002**, `/analyze`)
+and `presidio-anonymizer` (port **5001**, `/anonymize`). Make **5002** public too so
+the app can call detection. Quick test in the Codespace:
+
+```bash
+# 1) detect PII entities
+curl -s -X POST localhost:5002/analyze -H 'Content-Type: application/json' \
+  -d '{"text":"contact John Doe at john@grid.com or 555-0142","language":"en"}'
+
+# 2) mask them (feed the analyzer results into the anonymizer)
+curl -s -X POST localhost:5001/anonymize -H 'Content-Type: application/json' \
+  -d '{"text":"contact John Doe at john@grid.com","analyzer_results":[{"start":8,"end":16,"entity_type":"PERSON","score":0.85},{"start":20,"end":33,"entity_type":"EMAIL_ADDRESS","score":0.99}]}'
+```
+
+The app's PII client calls `/analyze` then `/anonymize` to redact a query before the
+LLM, falling back gracefully if the services are unreachable.
+
 ## Wire it into the Smart Grid app
 
 Set in `smart-grid-assistant/.env`:
@@ -68,9 +89,9 @@ only connectivity errors fall back to the direct provider.
 
 | File | Purpose |
 |------|---------|
-| `kong/kong.yml` | DB-less declarative config (ai-proxy + ai-prompt-guard) |
-| `docker-compose.yml` | Runs Kong 3.9 (OSS) DB-less, ports 8000 (proxy) / 8001 (admin) |
-| `.devcontainer/devcontainer.json` | Codespaces dev container (Docker-in-Docker, port forward) |
+| `kong/kong.yml` | DB-less config: `/v1` (ai-proxy → Groq) + `/guard` (ai-prompt-guard probe) |
+| `docker-compose.yml` | Kong 3.9 (8000/8001) + Presidio analyzer (5002) + anonymizer (5001) |
+| `.devcontainer/devcontainer.json` | Codespaces dev container (Docker-in-Docker, forwards 8000/8001/5001/5002) |
 
 ## Tuning
 

@@ -9,10 +9,8 @@ services:
       KONG_PROXY_LISTEN: "0.0.0.0:8000"
       KONG_ADMIN_LISTEN: "0.0.0.0:8001"
       KONG_LOG_LEVEL: "info"
-      # Kong's built-in env vault resolves {vault://env/groq-api-key} -> $GROQ_API_KEY
-      GROQ_API_KEY: ${GROQ_API_KEY}
     ports:
-      - "8000:8000"   # proxy (the AI gateway endpoint)
+      - "8000:8000"   # proxy (the AI gateway endpoint: /v1 chat, /guard probe)
       - "8001:8001"   # admin API (optional, for debugging)
     volumes:
       - ./kong:/kong:ro
@@ -21,3 +19,19 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+
+  # Microsoft Presidio — ready-made PII detection + anonymization engine.
+  # The app calls /analyze (detect) then /anonymize (mask) before sending to the LLM.
+  presidio-analyzer:
+    image: mcr.microsoft.com/presidio-analyzer:latest
+    container_name: presidio-analyzer
+    restart: unless-stopped
+    ports:
+      - "5002:3000"   # POST /analyze
+
+  presidio-anonymizer:
+    image: mcr.microsoft.com/presidio-anonymizer:latest
+    container_name: presidio-anonymizer
+    restart: unless-stopped
+    ports:
+      - "5001:3000"   # POST /anonymize
